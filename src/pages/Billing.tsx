@@ -136,7 +136,7 @@ export default function Billing() {
       createdAt: tx.created_at,
       customer: { name: selectedCustomer.name, phone: selectedCustomer.phone },
       staffName: fullName || user!.email!,
-      items: cart,
+      items: cart.map((c) => ({ name: c.service_name, price: c.price, quantity: c.quantity })),
       subtotal: totals.subtotal,
       discount: totals.discount_amount,
       cgst: totals.cgst,
