@@ -6,20 +6,21 @@ import {
   UserCog,
   Tag,
   Settings as SettingsIcon,
+  Megaphone,
   LogOut,
-  Scissors,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard", end: true },
+  { to: "/", icon: LayoutDashboard, label: "Dashboard", end: true, adminOnly: true },
   { to: "/customers", icon: Users, label: "Customers" },
   { to: "/billing", icon: Receipt, label: "Billing" },
   { to: "/plans", icon: Tag, label: "Plans", adminOnly: true },
   { to: "/team", icon: UserCog, label: "Team", adminOnly: true },
   { to: "/settings", icon: SettingsIcon, label: "Settings", adminOnly: true },
+  { to: "/offers", icon: Megaphone, label: "Offers", adminOnly: true },
 ];
 
 export default function AppLayout() {
@@ -32,12 +33,12 @@ export default function AppLayout() {
     <div className="flex min-h-screen w-full bg-background">
       <aside className="w-56 shrink-0 border-r bg-card flex flex-col">
         <div className="px-4 py-4 border-b flex items-center gap-2">
-          <div className="h-8 w-8 rounded-md bg-primary text-primary-foreground grid place-items-center">
-            <Scissors className="h-4 w-4" />
+          <div className="h-8 w-8 rounded-md overflow-hidden grid place-items-center">
+            <img src="/smg.png" alt="Logo" className="h-full w-full object-contain" />
           </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold">S M Glamz</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Salon Admin</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{isAdmin ? 'Admin Panel' : 'Staff Panel'}</div>
           </div>
         </div>
         <nav className="flex-1 p-2 space-y-0.5">
@@ -47,10 +48,9 @@ export default function AppLayout() {
               to={i.to}
               end={i.end}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 px-3 py-2 text-sm rounded-md transition-colors ${
-                  isActive
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                `flex items-center gap-2.5 px-3 py-2 text-sm rounded-md transition-colors ${isActive
+                  ? "bg-accent text-accent-foreground font-medium"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 }`
               }
             >

@@ -12,6 +12,7 @@ import Billing from "@/pages/Billing";
 import Plans from "@/pages/Plans";
 import Team from "@/pages/Team";
 import Settings from "@/pages/Settings";
+import Offers from "@/pages/Offers";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,12 +26,13 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<RequireAuth adminOnly><Dashboard /></RequireAuth>} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/billing" element={<Billing />} />
               <Route path="/plans" element={<RequireAuth adminOnly><Plans /></RequireAuth>} />
               <Route path="/team" element={<RequireAuth adminOnly><Team /></RequireAuth>} />
               <Route path="/settings" element={<RequireAuth adminOnly><Settings /></RequireAuth>} />
+              <Route path="/offers" element={<RequireAuth adminOnly><Offers /></RequireAuth>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

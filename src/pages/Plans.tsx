@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import * as api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,43 +8,51 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { inr } from "@/lib/format";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Plans() {
-  const [plans, setPlans] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
+  const [plans, setPlans] = useState<api.Plan[]>([]);
+  const [services, setServices] = useState<api.Service[]>([]);
   const [pf, setPf] = useState({ name: "", price: "", credit_value: "" });
   const [sf, setSf] = useState({ code: "", name: "", price: "" });
 
   const load = async () => {
-    const [p, s] = await Promise.all([
-      supabase.from("plans").select("*").order("created_at", { ascending: false }),
-      supabase.from("services").select("*").order("name"),
-    ]);
-    setPlans(p.data ?? []); setServices(s.data ?? []);
+    try {
+      const [p, s] = await Promise.all([api.getPlans(), api.getServices(false)]);
+      setPlans(p ?? []);
+      setServices(s ?? []);
+    } catch { }
   };
   useEffect(() => { load(); }, []);
 
   const addPlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("plans").insert({
-      name: pf.name, price: Number(pf.price), credit_value: Number(pf.credit_value),
-    });
-    if (error) return toast.error(error.message);
-    toast.success("Plan added"); setPf({ name: "", price: "", credit_value: "" }); load();
+    try {
+      await api.createPlan({ name: pf.name, price: Number(pf.price), credit_value: Number(pf.credit_value) });
+      toast.success("Plan added");
+      setPf({ name: "", price: "", credit_value: "" });
+      load();
+    } catch (err: any) { toast.error(err.message); }
   };
+
   const addSvc = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("services").insert({
-      code: sf.code || null, name: sf.name, price: Number(sf.price),
-    });
-    if (error) return toast.error(error.message);
-    toast.success("Service added"); setSf({ code: "", name: "", price: "" }); load();
+    try {
+      await api.createService({ code: sf.code || null, name: sf.name, price: Number(sf.price) });
+      toast.success("Service added");
+      setSf({ code: "", name: "", price: "" });
+      load();
+    } catch (err: any) { toast.error(err.message); }
   };
-  const del = async (table: "plans" | "services", id: string) => {
+
+  const delPlan = async (id: string) => {
     if (!confirm("Delete?")) return;
-    const { error } = await supabase.from(table).delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    load();
+    try { await api.deletePlan(id); load(); } catch (err: any) { toast.error(err.message); }
+  };
+
+  const delSvc = async (id: string) => {
+    if (!confirm("Delete?")) return;
+    try { await api.deleteService(id); load(); } catch (err: any) { toast.error(err.message); }
   };
 
   return (
@@ -72,7 +80,7 @@ export default function Plans() {
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>{inr(p.price)}</TableCell>
                     <TableCell>{inr(p.credit_value)}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => del("plans", p.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => delPlan(p.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}
                 {plans.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-4">No plans yet</TableCell></TableRow>}
@@ -98,7 +106,7 @@ export default function Plans() {
                     <TableCell className="text-muted-foreground">{s.code ?? "—"}</TableCell>
                     <TableCell className="font-medium">{s.name}</TableCell>
                     <TableCell>{inr(s.price)}</TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => del("services", s.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => delSvc(s.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button></TableCell>
                   </TableRow>
                 ))}
                 {services.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-4">No services yet</TableCell></TableRow>}

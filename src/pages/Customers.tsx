@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import * as api from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,27 +7,28 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { inr } from "@/lib/format";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import CustomerProfile from "@/components/CustomerProfile";
 
-interface Customer {
-  id: string; name: string; phone: string; email: string | null; wallet_balance: number; plan_id: string | null;
-}
-
 export default function Customers() {
   const { isAdmin } = useAuth();
-  const [rows, setRows] = useState<Customer[]>([]);
+  const [rows, setRows] = useState<api.Customer[]>([]);
+  const [plans, setPlans] = useState<api.Plan[]>([]);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", email: "", wallet_balance: "0" });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", wallet_balance: 0, plan_id: "" });
 
   const load = async () => {
-    const { data } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
-    setRows((data as Customer[]) ?? []);
+    try {
+      const [c, p] = await Promise.all([api.getCustomers(), api.getPlans()]);
+      setRows(c ?? []);
+      setPlans(p ?? []);
+    } catch { }
   };
   useEffect(() => { load(); }, []);
 
@@ -41,23 +42,41 @@ export default function Customers() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("customers").insert({
-      name: form.name, phone: form.phone, email: form.email || null,
-      wallet_balance: Number(form.wallet_balance) || 0,
+    try {
+      await api.createCustomer({
+        name: form.name,
+        phone: form.phone,
+        email: form.email || null,
+        wallet_balance: form.wallet_balance,
+        plan_id: form.plan_id || null,
+      });
+      toast.success("Customer added");
+      setOpen(false);
+      setForm({ name: "", phone: "", email: "", wallet_balance: 0, plan_id: "" });
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handlePlanChange = (planId: string) => {
+    const plan = plans.find(p => p.id === planId);
+    setForm({
+      ...form,
+      plan_id: planId,
+      wallet_balance: plan ? plan.credit_value : 0
     });
-    if (error) return toast.error(error.message);
-    toast.success("Customer added");
-    setOpen(false);
-    setForm({ name: "", phone: "", email: "", wallet_balance: "0" });
-    load();
   };
 
   const del = async (id: string) => {
     if (!confirm("Delete this customer?")) return;
-    const { error } = await supabase.from("customers").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("Deleted");
-    load();
+    try {
+      await api.deleteCustomer(id);
+      toast.success("Deleted");
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   return (
@@ -118,12 +137,33 @@ export default function Customers() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>New customer</DialogTitle></DialogHeader>
-          <form onSubmit={create} className="space-y-3">
+          <form onSubmit={create} className="space-y-4">
             <div className="space-y-1.5"><Label>Name</Label><Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Phone</Label><Input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div className="space-y-1.5"><Label>Email (optional)</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-            <div className="space-y-1.5"><Label>Opening wallet balance</Label><Input type="number" step="0.01" value={form.wallet_balance} onChange={(e) => setForm({ ...form, wallet_balance: e.target.value })} /></div>
-            <DialogFooter><Button type="submit">Add</Button></DialogFooter>
+
+            <div className="space-y-1.5">
+              <Label>Select Plan</Label>
+              <Select value={form.plan_id} onValueChange={handlePlanChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="No plan (0 balance)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No plan</SelectItem>
+                  {plans.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name} ({inr(p.credit_value)} credit)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Starting Wallet Balance</Label>
+              <div className="text-lg font-semibold text-primary">{inr(form.wallet_balance)}</div>
+              <p className="text-[10px] text-muted-foreground italic">Balance is automatically set based on the selected plan.</p>
+            </div>
+
+            <DialogFooter><Button type="submit">Add Customer</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

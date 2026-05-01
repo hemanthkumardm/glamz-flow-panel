@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import * as api from "@/lib/api";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,18 +16,12 @@ export default function CustomerProfile({ id, onClose }: Props) {
 
   useEffect(() => {
     (async () => {
-      const { data: c } = await supabase.from("customers").select("*").eq("id", id).single();
-      setCustomer(c);
-      if (c?.plan_id) {
-        const { data: p } = await supabase.from("plans").select("*").eq("id", c.plan_id).single();
-        setPlan(p);
-      } else setPlan(null);
-      const { data: tx } = await supabase
-        .from("transactions")
-        .select("id,created_at,total,staff_name,cash_amount,upi_amount,wallet_amount,transaction_items(service_name,price,quantity)")
-        .eq("customer_id", id)
-        .order("created_at", { ascending: false });
-      setHistory(tx ?? []);
+      try {
+        const c = await api.getCustomer(id);
+        setCustomer(c.customer);
+        setPlan(c.plan ?? null);
+        setHistory(c.transactions ?? []);
+      } catch { }
     })();
   }, [id]);
 
@@ -80,7 +74,7 @@ export default function CustomerProfile({ id, onClose }: Props) {
                       <div className="font-semibold">{inr(t.total)}</div>
                     </div>
                     <div className="mt-1.5 text-xs">
-                      {(t.transaction_items ?? []).map((i: any, idx: number) => (
+                      {(t.items ?? []).map((i: any, idx: number) => (
                         <div key={idx} className="flex justify-between">
                           <span>{i.service_name}{i.quantity > 1 ? ` × ${i.quantity}` : ""}</span>
                           <span className="text-muted-foreground">{inr(i.price * i.quantity)}</span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import * as api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,20 +8,21 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 export default function Settings() {
-  const [s, setS] = useState<any>(null);
+  const [s, setS] = useState<api.StoreSettings | null>(null);
 
   useEffect(() => {
-    supabase.from("store_settings").select("*").eq("id", 1).single().then(({ data }) => setS(data));
+    api.getSettings().then((data) => setS(data)).catch(() => { });
   }, []);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("store_settings").update({
-      business_name: s.business_name, address: s.address, phone: s.phone, gstin: s.gstin,
-      gst_default_on: s.gst_default_on, twilio_from_number: s.twilio_from_number, sms_enabled: s.sms_enabled,
-    }).eq("id", 1);
-    if (error) return toast.error(error.message);
-    toast.success("Settings saved");
+    if (!s) return;
+    try {
+      await api.saveSettings(s);
+      toast.success("Settings saved");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   if (!s) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
@@ -50,18 +51,24 @@ export default function Settings() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-base">SMS notifications (Twilio)</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">WhatsApp notifications</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="text-xs text-muted-foreground">
-              Connect Twilio via the Lovable connector (chat: "connect Twilio") to enable thank-you SMS after each bill. The customer will receive their bill total and updated wallet balance.
+              Configure your WhatsApp API Key (e.g. from a service like Gupshup or WhatsApp Cloud API) to send bill details and wallet updates.
             </div>
-            <div className="space-y-1.5">
-              <Label>Twilio sender number (E.164, e.g. +15017122661)</Label>
-              <Input value={s.twilio_from_number ?? ""} onChange={(e) => setS({ ...s, twilio_from_number: e.target.value })} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>WhatsApp API Key / Token</Label>
+                <Input type="password" value={s.whatsapp_api_key ?? ""} onChange={(e) => setS({ ...s, whatsapp_api_key: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Phone Number ID</Label>
+                <Input placeholder="e.g. 10655..." value={s.whatsapp_phone_number_id ?? ""} onChange={(e) => setS({ ...s, whatsapp_phone_number_id: e.target.value })} />
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <Switch id="sms" checked={s.sms_enabled} onCheckedChange={(v) => setS({ ...s, sms_enabled: v })} />
-              <Label htmlFor="sms" className="cursor-pointer">Send thank-you SMS after each bill</Label>
+              <Switch id="wa" checked={s.whatsapp_enabled} onCheckedChange={(v) => setS({ ...s, whatsapp_enabled: v })} />
+              <Label htmlFor="wa" className="cursor-pointer">Send thank-you WhatsApp after each bill</Label>
             </div>
           </CardContent>
         </Card>

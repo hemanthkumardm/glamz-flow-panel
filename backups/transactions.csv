@@ -1,0 +1,6 @@
+id,customer_id,staff_name,customer_name,customer_phone,subtotal,discount_amount,gst_applied,cgst_amount,sgst_amount,total,cash_amount,upi_amount,wallet_amount,wallet_balance_after,upi_txn_id,created_at
+e98756db-9bcb-43bb-b072-e2aad8d3ad74,,hemanth,NEW,,1800.00,0.00,true,162.00,162.00,2124.00,2124.00,0.00,0.00,0.00,,Fri Apr 17 2026 16:44:14 GMT+0530 (India Standard Time)
+985532f2-a4e2-446e-9123-4f0d5615f475,,hemanth,NEW,,1800.00,0.00,false,0.00,0.00,1800.00,1800.00,0.00,0.00,0.00,,Fri Apr 17 2026 16:44:31 GMT+0530 (India Standard Time)
+906884b7-8373-4dc2-812d-d242a1110eee,,hemanth,NEWW,,1800.00,0.00,true,162.00,162.00,2124.00,2124.00,0.00,0.00,0.00,,Fri Apr 17 2026 16:50:36 GMT+0530 (India Standard Time)
+b525502a-5b23-4a4b-a8a2-f5f10ae24ddc,a3670400-f9c7-457a-ab4d-645ca7ce19cd,hemanth,,,1800.00,180.00,false,0.00,0.00,1620.00,0.00,0.00,1620.00,11380.00,,Fri Apr 17 2026 18:43:14 GMT+0530 (India Standard Time)
+8b7c4686-b774-4eca-8b6f-28eaa80298c0,a3670400-f9c7-457a-ab4d-645ca7ce19cd,hemanth,,,1800.00,0.00,true,162.00,162.00,2124.00,2124.00,0.00,0.00,11380.00,,Sat Apr 18 2026 19:08:53 GMT+0530 (India Standard Time)

@@ -1,4 +1,0 @@
-project_id = "xgiowcamsxutknmfyzmy"
-
-[functions.send-bill-sms]
-verify_jwt = false

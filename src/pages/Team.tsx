@@ -1,38 +1,104 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import * as api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { PlusCircle, UserPlus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Team() {
   const [members, setMembers] = useState<any[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState({ name: "", phone: "", pass: "", role: "staff" as "admin" | "staff" });
+  const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    const { data: profiles } = await supabase.from("profiles").select("*").order("created_at");
-    const { data: roles } = await supabase.from("user_roles").select("user_id,role");
-    const map = new Map((roles ?? []).map((r) => [r.user_id, r.role]));
-    setMembers((profiles ?? []).map((p) => ({ ...p, role: map.get(p.id) ?? "staff" })));
+    try {
+      const data = await api.getTeamMembers();
+      setMembers(data ?? []);
+    } catch { }
   };
   useEffect(() => { load(); }, []);
 
-  const toggleRole = async (uid: string, current: string) => {
-    if (current === "admin") {
-      await supabase.from("user_roles").delete().eq("user_id", uid).eq("role", "admin");
-      await supabase.from("user_roles").insert({ user_id: uid, role: "staff" });
-    } else {
-      await supabase.from("user_roles").delete().eq("user_id", uid).eq("role", "staff");
-      await supabase.from("user_roles").insert({ user_id: uid, role: "admin" });
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.register(f.phone, f.pass, f.name, f.role);
+      toast.success("Team member added!");
+      setAdding(false);
+      setF({ name: "", phone: "", pass: "", role: "staff" });
+      load();
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to add member");
+    } finally {
+      setBusy(false);
     }
-    load();
+  };
+
+  const toggleRole = async (uid: string, current: string) => {
+    const newRole = current === "admin" ? "staff" : "admin";
+    try {
+      await api.setMemberRole(uid, newRole as "admin" | "staff");
+      load();
+    } catch { }
   };
 
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
-        <p className="text-sm text-muted-foreground">New team members sign up themselves on the login page; promote/demote here.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
+          <p className="text-sm text-muted-foreground">Manage your salon staff and administrators here.</p>
+        </div>
+        <Button onClick={() => setAdding(!adding)} variant={adding ? "ghost" : "default"} size="sm">
+          {adding ? "Cancel" : <><UserPlus className="h-4 w-4 mr-2" /> Add Member</>}
+        </Button>
       </div>
+
+      {adding && (
+        <Card className="animate-in slide-in-from-top-4 duration-300">
+          <CardHeader className="pb-2 flex flex-row items-center gap-2">
+            <PlusCircle className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base text-primary uppercase font-bold tracking-wider">New Staff Account</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Full Name</Label>
+                <Input required placeholder="Name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Phone Number</Label>
+                <Input required placeholder="Phone" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Password</Label>
+                <Input required type="password" placeholder="Password" value={f.pass} onChange={(e) => setF({ ...f, pass: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px]">Role</Label>
+                <Select value={f.role} onValueChange={(v: any) => setF({ ...f, role: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="staff">Staff</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="pt-2 sm:pt-0">
+                <Button type="submit" disabled={busy} className="w-full">
+                  {busy ? "Wait..." : "Create Account"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base">Members ({members.length})</CardTitle></CardHeader>
         <CardContent className="p-0">
