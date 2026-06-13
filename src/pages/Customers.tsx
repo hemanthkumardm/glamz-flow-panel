@@ -15,13 +15,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import CustomerProfile from "@/components/CustomerProfile";
 
 export default function Customers() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [rows, setRows] = useState<api.Customer[]>([]);
   const [plans, setPlans] = useState<api.Plan[]>([]);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", email: "", wallet_balance: 0, plan_id: "" });
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
 
   const load = async () => {
     try {
@@ -43,16 +44,42 @@ export default function Customers() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createCustomer({
+      const pId = form.plan_id === "none" ? null : form.plan_id;
+      const cust = await api.createCustomer({
         name: form.name,
         phone: form.phone,
         email: form.email || null,
         wallet_balance: form.wallet_balance,
-        plan_id: form.plan_id || null,
+        plan_id: pId || null,
       });
+
+      if (pId) {
+        const plan = plans.find((p) => p.id === pId);
+        if (plan && plan.price > 0) {
+          await api.createTransaction({
+            customer_id: cust.id,
+            staff_name: user?.full_name || "Admin",
+            subtotal: plan.price,
+            discount_pct: 0,
+            discount_flat: 0,
+            discount_amount: 0,
+            gst_applied: false,
+            cgst_amount: 0,
+            sgst_amount: 0,
+            total: plan.price,
+            cash_amount: paymentMethod === "Cash" ? plan.price : 0,
+            upi_amount: paymentMethod === "UPI" ? plan.price : 0,
+            wallet_amount: 0,
+            upi_txn_id: null,
+            items: [{ service_id: null, service_name: `Membership: ${plan.name}`, price: plan.price, quantity: 1, staff_name: user?.full_name || "Admin" }]
+          });
+        }
+      }
+
       toast.success("Customer added");
       setOpen(false);
       setForm({ name: "", phone: "", email: "", wallet_balance: 0, plan_id: "" });
+      setPaymentMethod("Cash");
       load();
     } catch (err: any) {
       toast.error(err.message);
@@ -162,6 +189,20 @@ export default function Customers() {
               <div className="text-lg font-semibold text-primary">{inr(form.wallet_balance)}</div>
               <p className="text-[10px] text-muted-foreground italic">Balance is automatically set based on the selected plan.</p>
             </div>
+
+            {form.plan_id && form.plan_id !== "none" && plans.find(p => p.id === form.plan_id)?.price > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-dashed">
+                <Label>Payment Method (for Membership)</Label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="radio" name="pm" checked={paymentMethod === "Cash"} onChange={() => setPaymentMethod("Cash")} /> Cash
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="radio" name="pm" checked={paymentMethod === "UPI"} onChange={() => setPaymentMethod("UPI")} /> UPI
+                  </label>
+                </div>
+              </div>
+            )}
 
             <DialogFooter><Button type="submit">Add Customer</Button></DialogFooter>
           </form>

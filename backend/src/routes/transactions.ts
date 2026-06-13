@@ -1,7 +1,6 @@
 import { Router } from "express";
 import pool from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { sendWhatsAppNotification } from "../lib/whatsapp.js";
 import { runFullBackup } from "../lib/csv-backup.js";
 
 const router = Router();
@@ -20,7 +19,7 @@ router.get("/", async (req, res) => {
         `SELECT t.*, 
             COALESCE((SELECT name FROM customers WHERE id = t.customer_id), t.customer_name) AS customer_name,
             COALESCE((SELECT phone FROM customers WHERE id = t.customer_id), t.customer_phone) AS customer_phone,
-            (SELECT json_agg(json_build_object('service_name',service_name,'price',price,'quantity',quantity)) 
+            (SELECT json_agg(json_build_object('service_name',service_name,'price',price,'quantity',quantity,'staff_name',staff_name)) 
              FROM transaction_items WHERE transaction_id = t.id) AS items
       FROM transactions t
       ${where}
@@ -67,34 +66,12 @@ router.post("/", async (req, res) => {
         // Insert line items
         for (const item of items) {
             await client.query(
-                "INSERT INTO transaction_items (transaction_id,service_id,service_name,price,quantity) VALUES ($1,$2,$3,$4,$5)",
-                [tx.id, item.service_id ?? null, item.service_name, item.price, item.quantity ?? 1]
+                "INSERT INTO transaction_items (transaction_id,service_id,service_name,price,quantity,staff_name) VALUES ($1,$2,$3,$4,$5,$6)",
+                [tx.id, item.service_id ?? null, item.service_name, item.price, item.quantity ?? 1, item.staff_name || null]
             );
         }
 
         await client.query("COMMIT");
-
-        // 3. Trigger WhatsApp Notification (Background/Async)
-        const recipientPhone = customer_phone || (customer_id ? (await pool.query("SELECT phone FROM customers WHERE id=$1", [customer_id])).rows[0]?.phone : null);
-
-        if (recipientPhone) {
-            (async () => {
-                try {
-                    const { rows: settRows } = await pool.query("SELECT business_name FROM store_settings WHERE id = 1");
-                    const nameToUse = customer_name || (customer_id ? (await pool.query("SELECT name FROM customers WHERE id=$1", [customer_id])).rows[0]?.name : "Guest");
-
-                    await sendWhatsAppNotification({
-                        phone: recipientPhone,
-                        customerName: nameToUse,
-                        total: total,
-                        walletBalance: walletAfter,
-                        businessName: settRows[0]?.business_name || "S M Glamz"
-                    });
-                } catch (err) {
-                    console.error("WhatsApp trigger error:", err);
-                }
-            })();
-        }
 
         // 4. Trigger Automatic CSV Backup
         runFullBackup();

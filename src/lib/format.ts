@@ -11,8 +11,8 @@ export const computeTotals = (
   const pctAmt = (subtotal * (discountPct || 0)) / 100;
   const discount_amount = Math.min(subtotal, pctAmt + (discountFlat || 0));
   const taxable = Math.max(0, subtotal - discount_amount);
-  const cgst = gstApplied ? +(taxable * 0.09).toFixed(2) : 0;
-  const sgst = gstApplied ? +(taxable * 0.09).toFixed(2) : 0;
+  const cgst = gstApplied ? +(taxable * 0.025).toFixed(2) : 0;
+  const sgst = gstApplied ? +(taxable * 0.025).toFixed(2) : 0;
   const total = +(taxable + cgst + sgst).toFixed(2);
   return { subtotal: +subtotal.toFixed(2), discount_amount: +discount_amount.toFixed(2), cgst, sgst, total };
 };

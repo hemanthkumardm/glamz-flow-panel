@@ -15,13 +15,14 @@ import { Search, X, Plus, Receipt as ReceiptIcon, Banknote, Smartphone, Wallet a
 import ReceiptModal from "@/components/ReceiptModal";
 import { ReceiptData } from "@/lib/receipt";
 
-interface CartItem { service_id: string | null; service_name: string; price: number; quantity: number }
+interface CartItem { service_id: string | null; service_name: string; price: number; quantity: number; staff_name?: string; }
 
 export default function Billing() {
   const { user, fullName } = useAuth();
   const [customers, setCustomers] = useState<api.Customer[]>([]);
   const [services, setServices] = useState<api.Service[]>([]);
   const [settings, setSettings] = useState<api.StoreSettings | null>(null);
+  const [team, setTeam] = useState<any[]>([]);
 
   const [isWalkIn, setIsWalkIn] = useState(false);
   const [guestName, setGuestName] = useState("");
@@ -48,18 +49,29 @@ export default function Billing() {
   useEffect(() => {
     (async () => {
       try {
-        const [c, s, st] = await Promise.all([
+        const [c, s, st, tm] = await Promise.all([
           api.getCustomers(),
           api.getServices(true),
           api.getSettings(),
+          api.getTeamMembers(),
         ]);
         setCustomers(c ?? []);
         setServices(s ?? []);
         setSettings(st);
+        setTeam(tm ?? []);
         setGstApplied(st?.gst_default_on ?? true);
       } catch { }
     })();
   }, []);
+
+  useEffect(() => {
+    if (selectedCustomer?.plan_id) {
+      setDiscountPct("10");
+      toast.success("10% Member Discount Applied Automatically!");
+    } else {
+      setDiscountPct("0");
+    }
+  }, [selectedCustomer]);
 
   const totals = useMemo(
     () => computeTotals(cart, Number(discountPct) || 0, Number(discountFlat) || 0, gstApplied),
@@ -128,7 +140,7 @@ export default function Billing() {
         upi_amount: Number(upi) || 0,
         wallet_amount: Number(wallet) || 0,
         upi_txn_id: upiTxn || null,
-        items: cart.map((c) => ({ service_id: c.service_id, service_name: c.service_name, price: c.price, quantity: c.quantity })),
+        items: cart.map((c) => ({ service_id: c.service_id, service_name: c.service_name, price: c.price, quantity: c.quantity, staff_name: c.staff_name })),
       });
 
       toast.success("Bill created");
@@ -141,7 +153,7 @@ export default function Billing() {
         },
         txId: tx.id,
         createdAt: tx.created_at,
-        customer: { name: isWalkIn ? (guestName || "Walk-in") : (selectedCustomer?.name ?? ""), phone: isWalkIn ? "" : (selectedCustomer?.phone ?? "") },
+        customer: { name: isWalkIn ? (guestName || "Walk-in") : (selectedCustomer?.name ?? ""), phone: isWalkIn ? guestPhone : (selectedCustomer?.phone ?? "") },
         staffName: fullName || user?.phone || "",
         items: cart.map((c) => ({ name: c.service_name, price: c.price, quantity: c.quantity })),
         subtotal: totals.subtotal,
@@ -263,6 +275,7 @@ export default function Billing() {
                 <TableHeader>
                   <TableRow className="text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/30">
                     <TableHead className="pl-4">Service</TableHead>
+                    <TableHead className="w-32">Staff</TableHead>
                     <TableHead className="text-right pr-4">Cost</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
@@ -271,6 +284,24 @@ export default function Billing() {
                   {cart.map((it, idx) => (
                     <TableRow key={idx} className="text-sm hover:bg-transparent border-b-muted/50">
                       <TableCell className="font-medium py-3 pl-4">{it.service_name}</TableCell>
+                      <TableCell className="py-3">
+                        <select
+                          className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          value={it.staff_name || ""}
+                          onChange={(e) => {
+                            const newCart = [...cart];
+                            newCart[idx].staff_name = e.target.value;
+                            setCart(newCart);
+                          }}
+                        >
+                          <option value="">Select...</option>
+                          {team.map(member => (
+                            <option key={member.id} value={member.full_name || member.phone}>
+                              {member.full_name || member.phone}
+                            </option>
+                          ))}
+                        </select>
+                      </TableCell>
                       <TableCell className="text-right py-3 pr-4 font-bold text-primary">
                         {inr(it.price)}
                       </TableCell>
@@ -281,7 +312,7 @@ export default function Billing() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {cart.length === 0 && <TableRow><TableCell colSpan={3} className="text-sm text-muted-foreground text-center py-10 opacity-60">Add services using the search bar above</TableCell></TableRow>}
+                  {cart.length === 0 && <TableRow><TableCell colSpan={4} className="text-sm text-muted-foreground text-center py-10 opacity-60">Add services using the search bar above</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent>
@@ -348,14 +379,14 @@ export default function Billing() {
               </div>
 
               <div className="flex items-center justify-between py-2 border-y border-dashed">
-                <Label htmlFor="gst-toggle" className="text-xs font-medium">Add 18% GST</Label>
+                <Label htmlFor="gst-toggle" className="text-xs font-medium">Add 5% GST</Label>
                 <Switch id="gst-toggle" checked={gstApplied} onCheckedChange={setGstApplied} />
               </div>
 
               {gstApplied && (
                 <div className="space-y-1 opacity-80">
-                  <Row label="CGST (9%)" v={inr(totals.cgst)} muted />
-                  <Row label="SGST (9%)" v={inr(totals.sgst)} muted />
+                  <Row label="CGST (2.5%)" v={inr(totals.cgst)} muted />
+                  <Row label="SGST (2.5%)" v={inr(totals.sgst)} muted />
                 </div>
               )}
 

@@ -87,6 +87,9 @@ export const createCustomer = (body: Omit<Customer, "id" | "created_at">) =>
 export const deleteCustomer = (id: string) =>
     req<void>(`/api/customers/${id}`, { method: "DELETE" });
 
+export const updateCustomerPlan = (id: string, body: { plan_id: string | null; wallet_addition: number }) =>
+    req<void>(`/api/customers/${id}/plan`, { method: "PUT", body: JSON.stringify(body) });
+
 // ─── Services ────────────────────────────────────────────────────────────────
 
 export interface Service {
@@ -138,6 +141,8 @@ export interface Transaction {
     wallet_balance_after: number;
     upi_txn_id: string | null;
     created_at: string;
+    items?: { service_name: string; price: number; quantity: number; staff_name?: string }[];
+    customer_name?: string;
 }
 
 export const getTransactions = (params?: { from?: string; to?: string }) => {
@@ -174,8 +179,6 @@ export interface StoreSettings {
     gstin: string;
     gst_default_on: boolean;
     whatsapp_enabled: boolean;
-    whatsapp_api_key: string | null;
-    whatsapp_phone_number_id: string | null;
 }
 
 export interface BroadcastStats {
@@ -188,4 +191,4 @@ export const saveSettings = (s: StoreSettings) => req<StoreSettings>("/api/setti
 
 export const getAuthStatus = () => req<{ initialized: boolean }>("/api/auth/status");
 export const getBroadcastStats = () => req<BroadcastStats>("/api/notifications/stats");
-export const broadcastMessage = (message: string) => req<{ message: string; recipientCount: number }>("/api/notifications/broadcast", { method: "POST", body: JSON.stringify({ message }) });
+export const getAudience = () => req<{ phone: string; name: string }[]>("/api/notifications/audience");

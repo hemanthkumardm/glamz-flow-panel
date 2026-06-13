@@ -145,7 +145,7 @@ export default function Dashboard() {
                   <TableCell>{tx.staff_name || "—"}</TableCell>
                   <TableCell className="max-w-[200px]">
                     <div className="text-[11px] leading-tight text-muted-foreground">
-                      {tx.items?.map((it: any) => `${it.service_name} (x${it.quantity})`).join(", ")}
+                      {tx.items?.map((it: any) => `${it.service_name} (x${it.quantity})${it.staff_name ? ` - [${it.staff_name}]` : ''}`).join(", ")}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-semibold">{inr(tx.total)}</TableCell>

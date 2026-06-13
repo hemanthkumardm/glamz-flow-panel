@@ -69,6 +69,9 @@ const ensureSchema = async () => {
                 if NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='customer_phone') THEN
                     ALTER TABLE transactions ADD COLUMN customer_phone TEXT;
                 END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transaction_items' AND column_name='staff_name') THEN
+                    ALTER TABLE transaction_items ADD COLUMN staff_name TEXT;
+                END IF;
             END $$;
         `);
         console.log("✅ Database schema verified.");

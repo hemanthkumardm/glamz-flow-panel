@@ -7,14 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { PlusCircle, UserPlus } from "lucide-react";
+import { PlusCircle, UserPlus, Calendar, History } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { format, startOfDay, endOfDay } from "date-fns";
+import { inr } from "@/lib/format";
 
 export default function Team() {
   const [members, setMembers] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ name: "", phone: "", pass: "", role: "staff" as "admin" | "staff" });
   const [busy, setBusy] = useState(false);
+  const [logStaff, setLogStaff] = useState<any>(null);
+  const [logDate, setLogDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+  const [logTx, setLogTx] = useState<any[]>([]);
+  const [logLoading, setLogLoading] = useState(false);
 
   const load = async () => {
     try {
@@ -47,6 +54,34 @@ export default function Team() {
       load();
     } catch { }
   };
+
+  useEffect(() => {
+    if (!logStaff || !logDate) return;
+    (async () => {
+      setLogLoading(true);
+      try {
+        const start = startOfDay(new Date(logDate)).toISOString();
+        const end = endOfDay(new Date(logDate)).toISOString();
+        const tx = await api.getTransactions({ from: start, to: end });
+        setLogTx(tx ?? []);
+      } catch { } finally {
+        setLogLoading(false);
+      }
+    })();
+  }, [logStaff, logDate]);
+
+  // Filter transactions and items for the selected staff member
+  const staffItems = logTx.flatMap(t => {
+    const matchingItems = (t.items || []).filter((it: any) => it.staff_name === logStaff?.full_name);
+    return matchingItems.map((it: any) => ({
+      ...it,
+      transaction_id: t.id,
+      customer_name: t.customer_name || "Walk-in",
+      created_at: t.created_at
+    }));
+  });
+
+  const staffTotal = staffItems.reduce((sum, it) => sum + (it.price * it.quantity), 0);
 
   return (
     <div className="p-6 space-y-4">
@@ -111,9 +146,14 @@ export default function Team() {
                   <TableCell className="text-muted-foreground">{m.phone ?? "—"}</TableCell>
                   <TableCell><Badge variant={m.role === "admin" ? "default" : "secondary"}>{m.role}</Badge></TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" onClick={() => toggleRole(m.id, m.role)}>
-                      {m.role === "admin" ? "Demote to staff" : "Promote to admin"}
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setLogStaff(m)}>
+                        <History className="h-4 w-4 mr-1.5" /> Log
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => toggleRole(m.id, m.role)}>
+                        {m.role === "admin" ? "Demote" : "Promote"}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -121,6 +161,59 @@ export default function Team() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={!!logStaff} onOpenChange={(open) => !open && setLogStaff(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Work Log: {logStaff?.full_name || "Staff"}</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center gap-2 py-2 border-b">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Input 
+              type="date" 
+              className="w-[160px] h-8 text-sm" 
+              value={logDate} 
+              onChange={(e) => setLogDate(e.target.value)} 
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto py-2">
+            {logLoading ? (
+              <div className="text-center py-10 text-sm text-muted-foreground">Loading...</div>
+            ) : staffItems.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs">
+                    <TableHead>Time</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Service</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {staffItems.map((it, i) => (
+                    <TableRow key={i} className="text-sm">
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {format(new Date(it.created_at), "hh:mm a")}
+                      </TableCell>
+                      <TableCell>{it.customer_name}</TableCell>
+                      <TableCell>{it.service_name} {it.quantity > 1 ? `(x${it.quantity})` : ""}</TableCell>
+                      <TableCell className="text-right font-medium">{inr(it.price * it.quantity)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-10 text-sm text-muted-foreground">
+                No work logged for this date.
+              </div>
+            )}
+          </div>
+          <div className="pt-4 border-t flex justify-between items-center bg-muted/20 px-4 py-3 rounded-md mt-2">
+            <span className="text-sm font-medium text-muted-foreground">Total Revenue Generated:</span>
+            <span className="text-xl font-bold text-primary">{inr(staffTotal)}</span>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

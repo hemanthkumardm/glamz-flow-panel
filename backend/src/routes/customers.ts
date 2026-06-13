@@ -44,6 +44,14 @@ router.post("/", async (req, res) => {
     res.status(201).json(rows[0]);
 });
 
+// PUT /api/customers/:id/plan
+router.put("/:id/plan", async (req, res) => {
+    const { plan_id, wallet_addition } = req.body;
+    await pool.query("UPDATE customers SET plan_id=$1, wallet_balance=wallet_balance + $2 WHERE id=$3", [plan_id || null, wallet_addition ?? 0, req.params.id]);
+    runFullBackup();
+    res.json({ message: "Plan updated" });
+});
+
 // DELETE /api/customers/:id
 router.delete("/:id", async (req, res) => {
     await pool.query("DELETE FROM customers WHERE id=$1", [req.params.id]);

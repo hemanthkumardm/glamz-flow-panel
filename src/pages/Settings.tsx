@@ -45,7 +45,7 @@ export default function Settings() {
             </div>
             <div className="flex items-center gap-2">
               <Switch id="g" checked={s.gst_default_on} onCheckedChange={(v) => setS({ ...s, gst_default_on: v })} />
-              <Label htmlFor="g" className="cursor-pointer">Apply GST 18% by default on new bills</Label>
+              <Label htmlFor="g" className="cursor-pointer">Apply GST 5% by default on new bills</Label>
             </div>
           </CardContent>
         </Card>
@@ -54,21 +54,11 @@ export default function Settings() {
           <CardHeader className="pb-2"><CardTitle className="text-base">WhatsApp notifications</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="text-xs text-muted-foreground">
-              Configure your WhatsApp API Key (e.g. from a service like Gupshup or WhatsApp Cloud API) to send bill details and wallet updates.
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>WhatsApp API Key / Token</Label>
-                <Input type="password" value={s.whatsapp_api_key ?? ""} onChange={(e) => setS({ ...s, whatsapp_api_key: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Phone Number ID</Label>
-                <Input placeholder="e.g. 10655..." value={s.whatsapp_phone_number_id ?? ""} onChange={(e) => setS({ ...s, whatsapp_phone_number_id: e.target.value })} />
-              </div>
+              Enable manual WhatsApp receipts. When this is on, you will see a "Send WhatsApp Receipt" button after completing a bill.
             </div>
             <div className="flex items-center gap-2">
               <Switch id="wa" checked={s.whatsapp_enabled} onCheckedChange={(v) => setS({ ...s, whatsapp_enabled: v })} />
-              <Label htmlFor="wa" className="cursor-pointer">Send thank-you WhatsApp after each bill</Label>
+              <Label htmlFor="wa" className="cursor-pointer">Enable Manual WhatsApp Receipts</Label>
             </div>
           </CardContent>
         </Card>

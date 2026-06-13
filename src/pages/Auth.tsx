@@ -21,7 +21,13 @@ export default function Auth() {
   const [isAdminPortal, setIsAdminPortal] = useState(true);
 
   useEffect(() => {
-    api.getAuthStatus().then(data => setInitialized(data.initialized));
+    api.getAuthStatus()
+      .then(data => setInitialized(data.initialized))
+      .catch(err => {
+        console.error("Auth status error:", err);
+        toast.error("Failed to connect to database: " + err.message);
+        setInitialized(false);
+      });
   }, []);
 
   useEffect(() => {

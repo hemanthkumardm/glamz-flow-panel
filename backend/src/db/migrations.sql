@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS transaction_items (
   transaction_id  UUID REFERENCES transactions(id) ON DELETE CASCADE,
   service_id      UUID REFERENCES services(id) ON DELETE SET NULL,
   service_name    TEXT NOT NULL,
+  staff_name      TEXT,
   price           NUMERIC(12,2) NOT NULL,
   quantity        INT  NOT NULL DEFAULT 1
 );
@@ -108,5 +109,8 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='customer_phone') THEN
     ALTER TABLE transactions ADD COLUMN customer_phone TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transaction_items' AND column_name='staff_name') THEN
+    ALTER TABLE transaction_items ADD COLUMN staff_name TEXT;
   END IF;
 END $$;

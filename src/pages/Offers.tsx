@@ -10,8 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 export default function Offers() {
     const [message, setMessage] = useState("");
     const [stats, setStats] = useState<api.BroadcastStats | null>(null);
+    const [audience, setAudience] = useState<{ phone: string; name: string }[]>([]);
     const [loading, setLoading] = useState(false);
-    const [sending, setSending] = useState(false);
 
     useEffect(() => {
         loadStats();
@@ -20,8 +20,12 @@ export default function Offers() {
     const loadStats = async () => {
         setLoading(true);
         try {
-            const data = await api.getBroadcastStats();
-            setStats(data);
+            const [statsData, audienceData] = await Promise.all([
+                api.getBroadcastStats(),
+                api.getAudience()
+            ]);
+            setStats(statsData);
+            setAudience(audienceData);
         } catch {
             toast.error("Failed to load audience stats");
         } finally {
@@ -29,32 +33,19 @@ export default function Offers() {
         }
     };
 
-    const handleBroadcast = async () => {
+    const sendManual = (phone: string, name: string) => {
         if (!message.trim()) {
-            toast.error("Please enter a message content");
+            toast.error("Please enter a message content first");
             return;
         }
-
-        const total = (stats?.totalRegistered || 0) + (stats?.totalWalkins || 0);
-        if (total === 0) {
-            toast.error("No recipients found");
-            return;
+        const cleanPhone = phone.replace(/\D/g, "");
+        // Personalize message slightly if name is available and not just Guest
+        let textToSend = message;
+        if (name && name !== "Guest" && name !== "Walk-in") {
+            textToSend = `Hello ${name},\n\n${message}`;
         }
-
-        if (!confirm(`Are you sure you want to send this broadcast to ${total} recipients?`)) {
-            return;
-        }
-
-        setSending(true);
-        try {
-            const res = await api.broadcastMessage(message);
-            toast.success(`Broadcast started! Sending to ${res.recipientCount} people.`);
-            setMessage("");
-        } catch (err: any) {
-            toast.error(err.message || "Failed to start broadcast");
-        } finally {
-            setSending(false);
-        }
+        const url = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(textToSend)}`;
+        window.open(url, "_blank");
     };
 
     const totalAudience = stats ? stats.totalRegistered + stats.totalWalkins : 0;
@@ -125,23 +116,29 @@ export default function Offers() {
                         onChange={(e) => setMessage(e.target.value)}
                     />
 
-                    <div className="flex justify-end pt-2">
-                        <Button
-                            size="lg"
-                            className="px-8 shadow-lg"
-                            onClick={handleBroadcast}
-                            disabled={sending || totalAudience === 0}
-                        >
-                            {sending ? (
-                                "Sending..."
-                            ) : (
-                                <>
-                                    <Send className="h-4 w-4 mr-2" />
-                                    Send Broadcast
-                                </>
-                            )}
-                        </Button>
-                    </div>
+                    {audience.length > 0 && message.trim().length > 0 && (
+                        <div className="pt-4 border-t">
+                            <h3 className="text-sm font-semibold mb-3">Send to your contacts:</h3>
+                            <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                                {audience.map((person, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                                        <div>
+                                            <div className="font-medium text-sm">{person.name}</div>
+                                            <div className="text-xs text-muted-foreground">{person.phone}</div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            className="bg-green-600 hover:bg-green-700 text-white"
+                                            onClick={() => sendManual(person.phone, person.name)}
+                                        >
+                                            <Send className="h-3 w-3 mr-1.5" />
+                                            Send
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>
