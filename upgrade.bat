@@ -49,23 +49,14 @@ call npm run build:webapp
 if errorlevel 1 goto :failed
 
 echo [4/5] Applying safe database updates (adds new columns only)...
-where psql >nul 2>&1
+cd backend
+call node scripts/init-db.js
 if errorlevel 1 (
-    echo [SKIP] psql not in PATH. Start the app once; the server applies updates on boot.
+    echo [WARN] Could not run SQL migrations automatically.
 ) else (
-    for /f "usebackq tokens=1,* delims==" %%A in ("backend\.env") do (
-        if /I "%%A"=="DB_NAME" set "DB_NAME=%%B"
-        if /I "%%A"=="DB_USER" set "DB_USER=%%B"
-    )
-    if not defined DB_NAME set "DB_NAME=glamz_db"
-    if not defined DB_USER set "DB_USER=postgres"
-    psql -U %DB_USER% -d %DB_NAME% -f "backend\src\db\migrations.sql"
-    if errorlevel 1 (
-        echo [WARN] Could not run SQL migrations now. The app will try again on startup.
-    ) else (
-        echo Database updated safely. No customer or service data was removed.
-    )
+    echo Database updated safely. No customer or service data was removed.
 )
+cd ..
 
 echo [5/5] Optional backup...
 if exist "backups\customers.csv" (
