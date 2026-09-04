@@ -66,12 +66,13 @@ export default function Billing() {
 
   useEffect(() => {
     if (selectedCustomer?.plan_id) {
-      setDiscountPct("10");
-      toast.success("10% Member Discount Applied Automatically!");
+      const pct = settings?.member_discount_pct ?? 10;
+      setDiscountPct(String(pct));
+      if (pct > 0) toast.success(`${pct}% member discount applied automatically`);
     } else {
       setDiscountPct("0");
     }
-  }, [selectedCustomer]);
+  }, [selectedCustomer, settings?.member_discount_pct]);
 
   const totals = useMemo(
     () => computeTotals(cart, Number(discountPct) || 0, Number(discountFlat) || 0, gstApplied),
@@ -296,7 +297,7 @@ export default function Billing() {
                         >
                           <option value="">Select...</option>
                           {team.map(member => (
-                            <option key={member.id} value={member.full_name || member.phone}>
+                            <option key={member.id} value={member.full_name?.trim() || member.phone}>
                               {member.full_name || member.phone}
                             </option>
                           ))}

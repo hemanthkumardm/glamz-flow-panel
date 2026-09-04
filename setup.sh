@@ -44,7 +44,7 @@ rm /tmp/glamz_migrations.sql
 
 # 5. Build Web Application
 echo "🛠️  Building web application bundle..."
-npm run build:webapp
+npm run build:webapp  # cross-platform (scripts/sync-public.mjs)
 
 echo ""
 echo "✅ Setup complete! The application is now bundled."

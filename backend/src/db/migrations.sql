@@ -95,7 +95,8 @@ CREATE TABLE IF NOT EXISTS store_settings (
   gst_default_on      BOOLEAN NOT NULL DEFAULT true,
   whatsapp_enabled    BOOLEAN NOT NULL DEFAULT false,
   whatsapp_api_key    TEXT,
-  whatsapp_phone_number_id TEXT
+  whatsapp_phone_number_id TEXT,
+  member_discount_pct NUMERIC(5,2) NOT NULL DEFAULT 10
 );
 
 -- Seed default settings row
@@ -112,5 +113,14 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transaction_items' AND column_name='staff_name') THEN
     ALTER TABLE transaction_items ADD COLUMN staff_name TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='store_settings' AND column_name='member_discount_pct') THEN
+    ALTER TABLE store_settings ADD COLUMN member_discount_pct NUMERIC(5,2) NOT NULL DEFAULT 10;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='voided_at') THEN
+    ALTER TABLE transactions ADD COLUMN voided_at TIMESTAMPTZ;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='transactions' AND column_name='voided_by') THEN
+    ALTER TABLE transactions ADD COLUMN voided_by TEXT;
   END IF;
 END $$;

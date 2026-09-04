@@ -12,6 +12,22 @@ router.get("/", async (_req, res) => {
     res.json(rows);
 });
 
+// GET /api/customers/:id/delete-info
+router.get("/:id/delete-info", async (req, res) => {
+    const id = req.params.id;
+    const { rows: [cust] } = await pool.query("SELECT id, name, wallet_balance FROM customers WHERE id=$1", [id]);
+    if (!cust) { res.status(404).json({ message: "Not found" }); return; }
+    const { rows: [stats] } = await pool.query(
+        "SELECT COUNT(*)::int AS transaction_count FROM transactions WHERE customer_id=$1",
+        [id]
+    );
+    res.json({
+        name: cust.name,
+        wallet_balance: cust.wallet_balance,
+        transaction_count: stats?.transaction_count ?? 0,
+    });
+});
+
 // GET /api/customers/:id  → { customer, plan, transactions }
 router.get("/:id", async (req, res) => {
     const id = req.params.id;
@@ -36,12 +52,39 @@ router.get("/:id", async (req, res) => {
 // POST /api/customers
 router.post("/", async (req, res) => {
     const { name, phone, email, wallet_balance, plan_id } = req.body;
+    const dup = await pool.query("SELECT id FROM customers WHERE phone=$1", [phone]);
+    if (dup.rows.length > 0) {
+        res.status(409).json({ message: "A customer with this phone number already exists" });
+        return;
+    }
     const { rows } = await pool.query(
         "INSERT INTO customers (name,phone,email,wallet_balance,plan_id) VALUES ($1,$2,$3,$4,$5) RETURNING *",
         [name, phone, email ?? null, wallet_balance ?? 0, plan_id ?? null]
     );
     runFullBackup();
     res.status(201).json(rows[0]);
+});
+
+// PUT /api/customers/:id
+router.put("/:id", async (req, res) => {
+    const { name, phone, email } = req.body;
+    const id = req.params.id;
+    if (!name?.trim() || !phone?.trim()) {
+        res.status(400).json({ message: "Name and phone are required" });
+        return;
+    }
+    const dup = await pool.query("SELECT id FROM customers WHERE phone=$1 AND id<>$2", [phone, id]);
+    if (dup.rows.length > 0) {
+        res.status(409).json({ message: "Another customer already uses this phone number" });
+        return;
+    }
+    const { rows } = await pool.query(
+        "UPDATE customers SET name=$1, phone=$2, email=$3 WHERE id=$4 RETURNING *",
+        [name.trim(), phone.trim(), email?.trim() || null, id]
+    );
+    if (!rows[0]) { res.status(404).json({ message: "Not found" }); return; }
+    runFullBackup();
+    res.json(rows[0]);
 });
 
 // PUT /api/customers/:id/plan
@@ -54,9 +97,19 @@ router.put("/:id/plan", async (req, res) => {
 
 // DELETE /api/customers/:id
 router.delete("/:id", async (req, res) => {
-    await pool.query("DELETE FROM customers WHERE id=$1", [req.params.id]);
+    const id = req.params.id;
+    const { rows: [cust] } = await pool.query("SELECT id FROM customers WHERE id=$1", [id]);
+    if (!cust) { res.status(404).json({ message: "Not found" }); return; }
+    const { rows: [stats] } = await pool.query(
+        "SELECT COUNT(*)::int AS transaction_count FROM transactions WHERE customer_id=$1",
+        [id]
+    );
+    await pool.query("DELETE FROM customers WHERE id=$1", [id]);
     runFullBackup();
-    res.status(204).end();
+    res.json({
+        message: "Customer deleted",
+        transactions_unlinked: stats?.transaction_count ?? 0,
+    });
 });
 
 export default router;

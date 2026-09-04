@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { PlusCircle, UserPlus, Calendar, History } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { inr } from "@/lib/format";
@@ -16,7 +16,7 @@ import { inr } from "@/lib/format";
 export default function Team() {
   const [members, setMembers] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
-  const [f, setF] = useState({ name: "", phone: "", pass: "", role: "staff" as "admin" | "staff" });
+  const [f, setF] = useState({ name: "", phone: "", pass: "" });
   const [busy, setBusy] = useState(false);
   const [logStaff, setLogStaff] = useState<any>(null);
   const [logDate, setLogDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
@@ -35,10 +35,10 @@ export default function Team() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.register(f.phone, f.pass, f.name, f.role);
+      await api.register(f.phone, f.pass, f.name);
       toast.success("Team member added!");
       setAdding(false);
-      setF({ name: "", phone: "", pass: "", role: "staff" });
+      setF({ name: "", phone: "", pass: "" });
       load();
     } catch (err: any) {
       toast.error(err.message ?? "Failed to add member");
@@ -47,12 +47,21 @@ export default function Team() {
     }
   };
 
-  const toggleRole = async (uid: string, current: string) => {
-    const newRole = current === "admin" ? "staff" : "admin";
+  const demoteToStaff = async (uid: string) => {
     try {
-      await api.setMemberRole(uid, newRole as "admin" | "staff");
+      await api.setMemberRole(uid, "staff");
+      toast.success("Demoted to staff");
       load();
-    } catch { }
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to update role");
+    }
+  };
+
+  const staffMatches = (staffName: string | null | undefined, member: any) => {
+    if (!staffName) return false;
+    const name = member.full_name?.trim();
+    const phone = member.phone?.trim();
+    return staffName === name || (!!phone && staffName === phone);
   };
 
   useEffect(() => {
@@ -71,8 +80,8 @@ export default function Team() {
   }, [logStaff, logDate]);
 
   // Filter transactions and items for the selected staff member
-  const staffItems = logTx.flatMap(t => {
-    const matchingItems = (t.items || []).filter((it: any) => it.staff_name === logStaff?.full_name);
+  const staffItems = logTx.filter((t) => !t.voided_at).flatMap(t => {
+    const matchingItems = (t.items || []).filter((it: any) => staffMatches(it.staff_name, logStaff));
     return matchingItems.map((it: any) => ({
       ...it,
       transaction_id: t.id,
@@ -102,7 +111,7 @@ export default function Team() {
             <CardTitle className="text-base text-primary uppercase font-bold tracking-wider">New Staff Account</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
+            <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
               <div className="space-y-1.5">
                 <Label className="text-[10px]">Full Name</Label>
                 <Input required placeholder="Name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
@@ -114,16 +123,6 @@ export default function Team() {
               <div className="space-y-1.5">
                 <Label className="text-[10px]">Password</Label>
                 <Input required type="password" placeholder="Password" value={f.pass} onChange={(e) => setF({ ...f, pass: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px]">Role</Label>
-                <Select value={f.role} onValueChange={(v: any) => setF({ ...f, role: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div className="pt-2 sm:pt-0">
                 <Button type="submit" disabled={busy} className="w-full">
@@ -150,9 +149,11 @@ export default function Team() {
                       <Button size="sm" variant="outline" onClick={() => setLogStaff(m)}>
                         <History className="h-4 w-4 mr-1.5" /> Log
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => toggleRole(m.id, m.role)}>
-                        {m.role === "admin" ? "Demote" : "Promote"}
-                      </Button>
+                      {m.role === "admin" && (
+                        <Button size="sm" variant="outline" onClick={() => demoteToStaff(m.id)}>
+                          Demote to Staff
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

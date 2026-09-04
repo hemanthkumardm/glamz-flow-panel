@@ -1,6 +1,6 @@
 import { Router } from "express";
 import pool from "../db.js";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireAdmin, type AuthRequest } from "../middleware/auth.js";
 import { runFullBackup } from "../lib/csv-backup.js";
 
 const router = Router();
@@ -77,6 +77,52 @@ router.post("/", async (req, res) => {
         runFullBackup();
 
         res.status(201).json(tx);
+    } catch (e: any) {
+        await client.query("ROLLBACK");
+        res.status(500).json({ message: e.message });
+    } finally {
+        client.release();
+    }
+});
+
+// POST /api/transactions/:id/void – admin only, restores wallet if used
+router.post("/:id/void", requireAdmin, async (req: AuthRequest, res) => {
+    const id = req.params.id;
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+
+        const txRes = await client.query("SELECT * FROM transactions WHERE id=$1 FOR UPDATE", [id]);
+        const tx = txRes.rows[0];
+        if (!tx) {
+            await client.query("ROLLBACK");
+            res.status(404).json({ message: "Bill not found" });
+            return;
+        }
+        if (tx.voided_at) {
+            await client.query("ROLLBACK");
+            res.status(400).json({ message: "This bill is already voided" });
+            return;
+        }
+
+        const userRes = await client.query("SELECT full_name, phone FROM users WHERE id=$1", [req.userId]);
+        const voidedBy = userRes.rows[0]?.full_name || userRes.rows[0]?.phone || "Admin";
+
+        if (tx.customer_id && Number(tx.wallet_amount) > 0) {
+            await client.query(
+                "UPDATE customers SET wallet_balance = wallet_balance + $1 WHERE id=$2",
+                [tx.wallet_amount, tx.customer_id]
+            );
+        }
+
+        const { rows } = await client.query(
+            "UPDATE transactions SET voided_at=NOW(), voided_by=$1 WHERE id=$2 RETURNING *",
+            [voidedBy, id]
+        );
+
+        await client.query("COMMIT");
+        runFullBackup();
+        res.json(rows[0]);
     } catch (e: any) {
         await client.query("ROLLBACK");
         res.status(500).json({ message: e.message });

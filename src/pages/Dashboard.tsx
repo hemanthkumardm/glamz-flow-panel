@@ -7,17 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inr } from "@/lib/format";
-import { Banknote, Smartphone, Wallet, Receipt, FileText } from "lucide-react";
+import { Banknote, Smartphone, Wallet, Receipt, FileText, Ban } from "lucide-react";
+import VoidBillDialog from "@/components/VoidBillDialog";
+import { toast } from "sonner";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { format, startOfDay, subDays } from "date-fns";
+
+const isActive = (t: { voided_at?: string | null }) => !t.voided_at;
 
 export default function Dashboard() {
   const [todayTx, setTodayTx] = useState<api.Transaction[]>([]);
   const [weekTx, setWeekTx] = useState<api.Transaction[]>([]);
   const [allTx, setAllTx] = useState<any[]>([]);
   const [showBills, setShowBills] = useState(false);
+  const [voidTarget, setVoidTarget] = useState<any>(null);
+  const [voidBusy, setVoidBusy] = useState(false);
 
   const load = () => {
     const todayStart = startOfDay(new Date()).toISOString();
@@ -35,18 +41,34 @@ export default function Dashboard() {
 
   useEffect(() => { load(); }, []);
 
+  const confirmVoid = async () => {
+    if (!voidTarget) return;
+    setVoidBusy(true);
+    try {
+      await api.voidTransaction(voidTarget.id);
+      toast.success("Bill voided");
+      setVoidTarget(null);
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setVoidBusy(false);
+    }
+  };
+
   const sum = (arr: api.Transaction[], k: keyof api.Transaction) =>
-    arr.reduce((s, t) => s + Number(t[k] || 0), 0);
+    arr.filter(isActive).reduce((s, t) => s + Number(t[k] || 0), 0);
   const cash = sum(todayTx, "cash_amount");
   const upi = sum(todayTx, "upi_amount");
   const wallet = sum(todayTx, "wallet_amount");
   const totalToday = sum(todayTx, "total");
+  const activeTodayCount = todayTx.filter(isActive).length;
 
   const days = Array.from({ length: 7 }).map((_, i) => {
     const d = startOfDay(subDays(new Date(), 6 - i));
     const key = format(d, "yyyy-MM-dd");
-    const day = weekTx.filter((t) => format(new Date(t.created_at), "yyyy-MM-dd") === key);
-    return { day: format(d, "EEE"), revenue: sum(day, "total") };
+    const day = weekTx.filter((t) => format(new Date(t.created_at), "yyyy-MM-dd") === key && isActive(t));
+    return { day: format(d, "EEE"), revenue: day.reduce((s, t) => s + Number(t.total || 0), 0) };
   });
 
   const pieData = [
@@ -69,7 +91,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat icon={Receipt} label="Today's Revenue" value={inr(totalToday)} hint={`${todayTx.length} bills`} />
+        <Stat icon={Receipt} label="Today's Revenue" value={inr(totalToday)} hint={`${activeTodayCount} bills`} />
         <Stat icon={Banknote} label="Cash" value={inr(cash)} accent="success" />
         <Stat icon={Smartphone} label="UPI" value={inr(upi)} accent="primary" />
         <Stat icon={Wallet} label="Wallet" value={inr(wallet)} accent="warning" />
@@ -127,14 +149,17 @@ export default function Dashboard() {
                 <TableHead>Staff (Team)</TableHead>
                 <TableHead>Services</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {allTx.map((tx) => (
-                <TableRow key={tx.id} className="text-sm font-light">
+                <TableRow key={tx.id} className={`text-sm font-light ${tx.voided_at ? "opacity-60" : ""}`}>
                   <TableCell className="whitespace-nowrap">{format(new Date(tx.created_at), "dd MMM, hh:mm a")}</TableCell>
                   <TableCell className="font-medium">
-                    {tx.customer_name ? (
+                    {tx.voided_at ? (
+                      <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40">Voided</Badge>
+                    ) : tx.customer_name ? (
                       tx.customer_name
                     ) : (
                       <Badge variant="outline" className="text-[10px] font-normal border-dashed">
@@ -148,18 +173,27 @@ export default function Dashboard() {
                       {tx.items?.map((it: any) => `${it.service_name} (x${it.quantity})${it.staff_name ? ` - [${it.staff_name}]` : ''}`).join(", ")}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-semibold">{inr(tx.total)}</TableCell>
+                  <TableCell className={`text-right font-semibold ${tx.voided_at ? "line-through" : ""}`}>{inr(tx.total)}</TableCell>
+                  <TableCell>
+                    {!tx.voided_at && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setVoidTarget(tx)}>
+                        <Ban className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
               {allTx.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No bills found</TableCell>
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">No bills found</TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </DialogContent>
       </Dialog>
+
+      <VoidBillDialog bill={voidTarget} busy={voidBusy} onClose={() => setVoidTarget(null)} onConfirm={confirmVoid} />
     </div>
   );
 }

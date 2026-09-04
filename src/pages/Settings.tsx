@@ -11,7 +11,7 @@ export default function Settings() {
   const [s, setS] = useState<api.StoreSettings | null>(null);
 
   useEffect(() => {
-    api.getSettings().then((data) => setS(data)).catch(() => { });
+    api.getSettings().then((data) => setS({ ...data, member_discount_pct: data.member_discount_pct ?? 10 })).catch(() => { });
   }, []);
 
   const save = async (e: React.FormEvent) => {
@@ -46,6 +46,18 @@ export default function Settings() {
             <div className="flex items-center gap-2">
               <Switch id="g" checked={s.gst_default_on} onCheckedChange={(v) => setS({ ...s, gst_default_on: v })} />
               <Label htmlFor="g" className="cursor-pointer">Apply GST 5% by default on new bills</Label>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Member discount (%)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                value={s.member_discount_pct ?? 10}
+                onChange={(e) => setS({ ...s, member_discount_pct: Number(e.target.value) })}
+              />
+              <p className="text-[10px] text-muted-foreground">Auto-applied on bills when the customer has an active membership plan.</p>
             </div>
           </CardContent>
         </Card>

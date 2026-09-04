@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Trash2 } from "lucide-react";
@@ -23,6 +24,9 @@ export default function Customers() {
   const [selected, setSelected] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", email: "", wallet_balance: 0, plan_id: "" });
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [deleteTarget, setDeleteTarget] = useState<api.CustomerDeleteInfo | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     try {
@@ -95,14 +99,34 @@ export default function Customers() {
     });
   };
 
-  const del = async (id: string) => {
-    if (!confirm("Delete this customer?")) return;
+  const openDelete = async (id: string) => {
     try {
-      await api.deleteCustomer(id);
-      toast.success("Deleted");
+      const info = await api.getCustomerDeleteInfo(id);
+      setDeleteId(id);
+      setDeleteTarget(info);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      const result = await api.deleteCustomer(deleteId);
+      const unlinked = result.transactions_unlinked;
+      toast.success(
+        unlinked > 0
+          ? `Customer deleted. ${unlinked} past bill${unlinked === 1 ? "" : "s"} kept as records.`
+          : "Customer deleted"
+      );
+      setDeleteTarget(null);
+      setDeleteId(null);
       load();
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -147,7 +171,7 @@ export default function Customers() {
                 </TableCell>
                 {isAdmin && (
                   <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); del(c.id); }}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openDelete(c.id); }}>
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>
                   </TableCell>
@@ -210,6 +234,37 @@ export default function Customers() {
       </Dialog>
 
       {selected && <CustomerProfile id={selected} onClose={() => { setSelected(null); load(); }} />}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteId(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>This cannot be undone.</p>
+                {deleteTarget && deleteTarget.wallet_balance > 0 && (
+                  <p>Wallet balance of <span className="font-medium text-foreground">{inr(deleteTarget.wallet_balance)}</span> will be removed.</p>
+                )}
+                {deleteTarget && deleteTarget.transaction_count > 0 ? (
+                  <p>{deleteTarget.transaction_count} past bill{deleteTarget.transaction_count === 1 ? "" : "s"} will remain in your records but will no longer be linked to this customer.</p>
+                ) : (
+                  <p>This customer has no billing history.</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+            >
+              {deleting ? "Deleting…" : "Delete customer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

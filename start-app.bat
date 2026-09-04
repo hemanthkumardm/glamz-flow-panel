@@ -1,37 +1,78 @@
 @echo off
+setlocal EnableExtensions
 title S M Glamz Salon
-echo Starting S M Glamz Salon Management System...
-echo ==============================================
+echo.
+echo  Starting S M Glamz Salon Management System
+echo  ==========================================
+echo.
 
-:: Get the directory of the script
 set "DIR=%~dp0"
 cd /d "%DIR%"
 
-:: 1. Check and install frontend dependencies if missing
-IF NOT EXIST "node_modules\" (
-    echo [First Time Setup] Installing core application files... Please wait.
-    call npm install
+where node >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Node.js is not installed. Run setup.bat after installing Node.js.
+    pause
+    exit /b 1
 )
 
-:: 2. Check and install backend dependencies if missing
-IF NOT EXIST "backend\node_modules\" (
-    echo [First Time Setup] Installing server files... Please wait.
+if not exist "node_modules\" (
+    echo First-time setup detected. Running setup.bat...
+    call "%DIR%setup.bat"
+    if errorlevel 1 exit /b 1
+)
+
+if not exist "backend\node_modules\" (
+    echo Installing backend dependencies...
     cd backend
     call npm install
     cd ..
 )
 
-:: 3. Build the frontend dashboard if missing
-IF NOT EXIST "dist\" (
-    echo [First Time Setup] Building the dashboard for production... Please wait.
-    call npm run build
+if not exist "backend\.env" (
+    if exist "backend\.env.example" (
+        copy /Y "backend\.env.example" "backend\.env" >nul
+        echo Created backend\.env - set your PostgreSQL password before continuing.
+        notepad "backend\.env"
+        pause
+    ) else (
+        echo [ERROR] backend\.env is missing. Run setup.bat first.
+        pause
+        exit /b 1
+    )
 )
 
-:: 4. Start the Application
+if not exist "backend\dist\index.js" (
+    echo Building backend...
+    cd backend
+    call npm run build
+    if errorlevel 1 (
+        echo [ERROR] Backend build failed.
+        pause
+        exit /b 1
+    )
+    cd ..
+)
+
+if not exist "backend\public\index.html" (
+    echo Building dashboard for production...
+    call npm run build:webapp
+    if errorlevel 1 (
+        echo [ERROR] Dashboard build failed.
+        pause
+        exit /b 1
+    )
+)
+
 cd backend
 echo.
-echo Starting the server! Opening browser shortly...
-start "" "http://localhost:4000"
-npm start
+echo Server starting at http://localhost:4000
+echo Keep this window open while using the salon panel.
+echo.
 
+start "" cmd /c "timeout /t 4 /nobreak >nul && start http://localhost:4000"
+call npm start
+
+echo.
+echo Server stopped.
 pause

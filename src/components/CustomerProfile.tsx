@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { inr } from "@/lib/format";
 import { format } from "date-fns";
-import { Phone, Mail, Wallet } from "lucide-react";
+import { Phone, Mail, Wallet, Pencil, Ban } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import VoidBillDialog from "@/components/VoidBillDialog";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -17,15 +19,19 @@ import { useAuth } from "@/contexts/AuthContext";
 interface Props { id: string; onClose: () => void }
 
 export default function CustomerProfile({ id, onClose }: Props) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [customer, setCustomer] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [plans, setPlans] = useState<api.Plan[]>([]);
   
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "" });
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [voidTarget, setVoidTarget] = useState<any>(null);
+  const [voidBusy, setVoidBusy] = useState(false);
 
   const load = async () => {
     try {
@@ -38,6 +44,43 @@ export default function CustomerProfile({ id, onClose }: Props) {
   };
 
   useEffect(() => { load(); }, [id]);
+
+  const openEdit = () => {
+    if (!customer) return;
+    setEditForm({ name: customer.name, phone: customer.phone, email: customer.email ?? "" });
+    setEditOpen(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.updateCustomer(id, {
+        name: editForm.name,
+        phone: editForm.phone,
+        email: editForm.email || null,
+      });
+      toast.success("Customer updated");
+      setEditOpen(false);
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const confirmVoid = async () => {
+    if (!voidTarget) return;
+    setVoidBusy(true);
+    try {
+      await api.voidTransaction(voidTarget.id);
+      toast.success("Bill voided");
+      setVoidTarget(null);
+      load();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setVoidBusy(false);
+    }
+  };
 
   const handleUpgrade = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,8 +129,11 @@ export default function CustomerProfile({ id, onClose }: Props) {
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader>
+        <SheetHeader className="flex-row items-center justify-between space-y-0">
           <SheetTitle className="text-xl">{customer.name}</SheetTitle>
+          <Button variant="outline" size="sm" className="h-8" onClick={openEdit}>
+            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+          </Button>
         </SheetHeader>
 
         <div className="mt-4 space-y-4">
@@ -119,11 +165,19 @@ export default function CustomerProfile({ id, onClose }: Props) {
             <div className="text-sm font-medium mb-2">Service history ({history.length})</div>
             <div className="space-y-2">
               {history.map((t) => (
-                <Card key={t.id}>
+                <Card key={t.id} className={t.voided_at ? "opacity-60 border-dashed" : ""}>
                   <CardContent className="p-3 text-sm">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="text-xs text-muted-foreground">{format(new Date(t.created_at), "dd MMM yyyy, HH:mm")}</div>
-                      <div className="font-semibold">{inr(t.total)}</div>
+                      <div className="flex items-center gap-2">
+                        {t.voided_at && <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40">Voided</Badge>}
+                        <div className={`font-semibold ${t.voided_at ? "line-through" : ""}`}>{inr(t.total)}</div>
+                        {isAdmin && !t.voided_at && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setVoidTarget(t)}>
+                            <Ban className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div className="mt-1.5 text-xs">
                       {(t.items ?? []).map((i: any, idx: number) => (
@@ -145,6 +199,20 @@ export default function CustomerProfile({ id, onClose }: Props) {
           </div>
         </div>
       </SheetContent>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit customer</DialogTitle></DialogHeader>
+          <form onSubmit={handleEdit} className="space-y-4">
+            <div className="space-y-1.5"><Label>Name</Label><Input required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Phone</Label><Input required value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Email (optional)</Label><Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></div>
+            <DialogFooter><Button type="submit">Save changes</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <VoidBillDialog bill={voidTarget} busy={voidBusy} onClose={() => setVoidTarget(null)} onConfirm={confirmVoid} />
 
       <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
         <DialogContent>

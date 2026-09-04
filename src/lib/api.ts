@@ -84,8 +84,20 @@ export const getCustomers = () => req<Customer[]>("/api/customers");
 export const getCustomer = (id: string) => req<any>(`/api/customers/${id}`);
 export const createCustomer = (body: Omit<Customer, "id" | "created_at">) =>
     req<Customer>("/api/customers", { method: "POST", body: JSON.stringify(body) });
+export interface CustomerDeleteInfo {
+    name: string;
+    wallet_balance: number;
+    transaction_count: number;
+}
+
+export const getCustomerDeleteInfo = (id: string) =>
+    req<CustomerDeleteInfo>(`/api/customers/${id}/delete-info`);
+
 export const deleteCustomer = (id: string) =>
-    req<void>(`/api/customers/${id}`, { method: "DELETE" });
+    req<{ message: string; transactions_unlinked: number }>(`/api/customers/${id}`, { method: "DELETE" });
+
+export const updateCustomer = (id: string, body: Pick<Customer, "name" | "phone" | "email">) =>
+    req<Customer>(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify(body) });
 
 export const updateCustomerPlan = (id: string, body: { plan_id: string | null; wallet_addition: number }) =>
     req<void>(`/api/customers/${id}/plan`, { method: "PUT", body: JSON.stringify(body) });
@@ -104,6 +116,9 @@ export const getServices = (activeOnly = true) =>
     req<Service[]>(`/api/services${activeOnly ? "?active=true" : ""}`);
 export const createService = (body: Pick<Service, "code" | "name" | "price">) =>
     req<Service>("/api/services", { method: "POST", body: JSON.stringify(body) });
+export const updateService = (id: string, body: Pick<Service, "code" | "name" | "price" | "active">) =>
+    req<Service>(`/api/services/${id}`, { method: "PUT", body: JSON.stringify(body) });
+
 export const deleteService = (id: string) =>
     req<void>(`/api/services/${id}`, { method: "DELETE" });
 
@@ -140,6 +155,8 @@ export interface Transaction {
     sgst_amount: number;
     wallet_balance_after: number;
     upi_txn_id: string | null;
+    voided_at?: string | null;
+    voided_by?: string | null;
     created_at: string;
     items?: { service_name: string; price: number; quantity: number; staff_name?: string }[];
     customer_name?: string;
@@ -161,6 +178,9 @@ export const createTransaction = (body: any) =>
 export const getCustomerTransactions = (customerId: string) =>
     req<any[]>(`/api/transactions?customer_id=${customerId}`);
 
+export const voidTransaction = (id: string) =>
+    req<Transaction>(`/api/transactions/${id}/void`, { method: "POST" });
+
 // ─── Team ────────────────────────────────────────────────────────────────────
 
 export const getTeamMembers = () => req<any[]>("/api/team");
@@ -179,6 +199,7 @@ export interface StoreSettings {
     gstin: string;
     gst_default_on: boolean;
     whatsapp_enabled: boolean;
+    member_discount_pct: number;
 }
 
 export interface BroadcastStats {
